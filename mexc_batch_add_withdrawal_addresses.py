@@ -58,7 +58,7 @@ async function addRows(count) {{
     console.log(`Добавляем строку ${{i}} + 1}}/${{count}}`);
     if (addButton) {{
       addButton.click();
-      await delay(700); // Ждем, чтобы строка добавилась
+      await delay(400); // Ждем, чтобы строка добавилась
     }} else {{
       console.error("Кнопка добавления не найдена");
       break;
@@ -120,7 +120,7 @@ async function fillRow(rowIndex, coinValue, networkValue, nameValue, addressValu
     }}
   }}
 
-  await delay(800);
+  await delay(300);
 
   // 2. Заполняем сеть
   const networkInputs = document.querySelectorAll('.ant-select-selection-search-input');
@@ -159,7 +159,7 @@ async function fillRow(rowIndex, coinValue, networkValue, nameValue, addressValu
     }}
   }}
 
-  await delay(800);
+  await delay(100);
 
   // 3. Заполняем имя и адрес
   const remarkInput = row.querySelector('input[id*="remark"]') || coinInputs[3]; 
@@ -193,13 +193,13 @@ async function autoFillAllRows() {{
 
     if (rowsToAdd > 0) {{
       await addRows(rowsToAdd);
-      await delay(1000); // Ждем, чтобы все строки загрузились
+      await delay(500); // Ждем, чтобы все строки загрузились
     }}
 
     // Теперь заполняем каждую строку
     for (let i = 0; i < walletAddresses.length; i++) {{
       await fillRow(i, "{COIN}", "{NETWORK}", walletNames[i], walletAddresses[i]);
-      await delay(1000); // Задержка между заполнением строк
+      await delay(200); // Задержка между заполнением строк
     }}
 
     console.log("Автоматическое заполнение завершено!");
