@@ -87,79 +87,187 @@ async function fillRow(rowIndex, coinValue, networkValue, nameValue, addressValu
   const row = rows[rowIndex];
   console.log(`Найдена строка ${{rowIndex}}`);
 
-  // 1. Заполняем монету
-  const coinInputs = row.querySelectorAll('input');
-  let coinInput;
-
-  // Ищем поле для монеты (обычно 2-й инпут)
-  if (coinInputs.length >= 2) {{
-    // В разных случаях это может быть разный элемент, поэтому пробуем несколько вариантов
-    coinInput = row.querySelector('input[id*="coinId"]') || 
-               coinInputs[1];
-
-    if (coinInput) {{
-      console.log(`Заполняем поле монеты (${{coinValue}})`);
-      setReactInputValue(coinInput, coinValue);
-      await delay(300);
-
-      // Клик по опции в выпадающем списке
-      const coinOptions = document.querySelectorAll('.ant-select-item.ant-select-item-option');
-      console.log(`Найдено ${{coinOptions.length}} опций монет`);
-
+ // 1. Заполняем монету
+const coinInputs = row.querySelectorAll('input');
+let coinInput;
+// Ищем поле для монеты (обычно 2-й инпут)
+if (coinInputs.length >= 2) {{
+  coinInput = row.querySelector('input[id*="coinId"]') || 
+             coinInputs[1];
+  
+  if (coinInput) {{
+    console.log(`Заполняем поле монеты (${{coinValue}})`);
+    setReactInputValue(coinInput, coinValue);
+    
+    // Триггерим события для открытия выпадающего списка
+    coinInput.focus();
+    coinInput.click();
+    
+    // Даем время на открытие списка
+    await delay(500);
+    
+    // Ищем выпадающий список, связанный с текущим полем
+    // Обычно Ant Design создает dropdown в конце body
+    const dropdowns = document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+    const lastDropdown = dropdowns[dropdowns.length - 1]; // Берем последний открытый dropdown
+    
+    if (lastDropdown) {{
+      const coinOptions = lastDropdown.querySelectorAll('.ant-select-item.ant-select-item-option');
+      console.log(`Найдено ${{coinOptions.length}} опций монет в текущем dropdown`);
+      
       if (coinOptions.length > 0) {{
         // Ищем соответствующую опцию или берем первую
         const targetOption = Array.from(coinOptions).find(opt => 
           opt.textContent.includes(coinValue)
         ) || coinOptions[0];
-
+        
         console.log(`Выбираем опцию: ${{targetOption.textContent}}`);
+        
+        // Убеждаемся, что опция видима
+        targetOption.scrollIntoView({{ block: 'nearest' }});
+        await delay(100);
+        
+        // Кликаем по опции
         targetOption.click();
+        await delay(300);
       }}
     }} else {{
-      console.error("Поле для монеты не найдено");
+      console.error("Выпадающий список не найден");
+      
+      // Альтернативный подход - симулируем нажатие клавиш
+      const event = new KeyboardEvent('keydown', {{ 
+        key: 'Enter', 
+        keyCode: 13, 
+        which: 13,
+        bubbles: true 
+      }});
+      coinInput.dispatchEvent(event);
     }}
+  }} else {{
+    console.error("Поле для монеты не найдено");
   }}
-
+}}
   await delay(300);
 
-  // 2. Заполняем сеть
-  const networkInputs = document.querySelectorAll('.ant-select-selection-search-input');
+// 2. Заполняем сеть (по второму combobox rc_select_* и его aria-controls)
+try {{
+  // Находим все combobox-инпуты в текущей строке
+  const comboInputs = Array.from(
+    row.querySelectorAll('input.ant-select-selection-search-input[role="combobox"][id^="rc_select_"]')
+  );
 
-  // Получаем все контейнеры выбора сети в текущей строке
-  const networkContainers = row.querySelectorAll('.ant-select-selection-search');
+  if (comboInputs.length === 0) {{
+    console.error('В текущей строке combobox-инпуты не найдены');
+  }} else {{
+    // Берём "второй" combobox в строке (обычно это — Сеть)
+    const networkInput = comboInputs[1] || comboInputs[0];
 
-  if (networkContainers.length > 0) {{
-    // Берем второй контейнер (первый обычно для монеты, второй для сети)
-    const networkContainer = networkContainers[1] || networkContainers[0];
-    if (networkContainer) {{
-      const networkInput = networkContainer.querySelector('input');
+    if (!networkInput) {{
+      console.error('Поле ввода для сети не найдено');
+    }} else {{
+      console.log(`Заполняем поле сети (${{networkValue}}), input.id=${{networkInput.id}}`);
+      setReactInputValue(networkInput, networkValue);
 
-      if (networkInput) {{
-        console.log(`Заполняем поле сети (${{networkValue}})`);
-        setReactInputValue(networkInput, networkValue);
-        await delay(300);
+      // Откроем dropdown для именно этого инпута
+      networkInput.focus();
+      networkInput.click();
+      await delay(400);
 
-        // Клик по опции в выпадающем списке
-        const networkOptions = document.querySelectorAll('.ant-select-item.ant-select-item-option');
+      // Ждем dropdown, связанный с этим инпутом, по aria-controls / aria-owns
+      const controlsId = networkInput.getAttribute('aria-controls') || networkInput.getAttribute('aria-owns');
 
-        if (networkOptions.length > 0) {{
-          // Ищем соответствующую опцию или берем первую
-          const targetOption = Array.from(networkOptions).find(opt => 
-            opt.textContent.includes(networkValue)
-          ) || networkOptions[0];
+      const waitForDropdownByInput = (input, timeout = 5000) =>
+        new Promise((resolve, reject) => {{
+          const targetId = input.getAttribute('aria-controls') || input.getAttribute('aria-owns');
+          const started = Date.now();
 
-          console.log(`Выбираем опцию сети: ${{targetOption.textContent}}`);
+          const tryFind = () => {{
+            if (!targetId) return null;
+            const listEl = document.getElementById(targetId);
+            if (listEl) {{
+              const dropdown = listEl.closest('.ant-select-dropdown');
+              if (dropdown && !dropdown.classList.contains('ant-select-dropdown-hidden')) {{
+                return {{ listEl, dropdown }};
+              }}
+            }}
+            return null;
+          }};
+
+          const first = tryFind();
+          if (first) return resolve(first);
+
+          const obs = new MutationObserver(() => {{
+            const found = tryFind();
+            if (found) {{
+              obs.disconnect();
+              resolve(found);
+            }} else if (Date.now() - started > timeout) {{
+              obs.disconnect();
+              reject(new Error('Timeout waiting for dropdown'));
+            }}
+          }});
+
+          obs.observe(document.body, {{ childList: true, subtree: true }});
+          setTimeout(() => {{
+            obs.disconnect();
+            reject(new Error('Timeout waiting for dropdown'));
+          }}, timeout);
+        }});
+
+      let dropdownCtx = null;
+      try {{
+        dropdownCtx = await waitForDropdownByInput(networkInput, 5000);
+      }} catch (e) {{
+        console.warn('Не дождались dropdown по aria-controls, пробуем фолбэк на последний открытый:', e);
+      }}
+
+      // Если не нашли по связке — фолбэк: берем последний видимый dropdown
+      const dropdown =
+        dropdownCtx?.dropdown ||
+        Array.from(document.querySelectorAll('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')).pop();
+
+      if (dropdown) {{
+        const optionNodes = dropdown.querySelectorAll('.ant-select-item.ant-select-item-option');
+        console.log(`Найдено ${{optionNodes.length}} опций сети в связанном dropdown (controls=${{controlsId || 'n/a'}})`);
+
+        if (optionNodes.length > 0) {{
+          const options = Array.from(optionNodes);
+
+          // Ищем непустую и не disabled опцию по тексту (case-insensitive)
+          const lcValue = String(networkValue || '').trim().toLowerCase();
+          const targetOption =
+            options.find(opt => {{
+              const text = opt.textContent?.trim().toLowerCase() || '';
+              const disabled = opt.classList.contains('ant-select-item-option-disabled');
+              return !disabled && (lcValue ? text.includes(lcValue) : true);
+            }}) ||
+            options.find(opt => !opt.classList.contains('ant-select-item-option-disabled')) ||
+            options[0];
+
+          console.log(`Выбираем опцию сети: ${{targetOption?.textContent?.trim() || '(первая доступная)'}} `);
+          targetOption.scrollIntoView({{ block: 'nearest' }});
+          await delay(200);
           targetOption.click();
+          await delay(400);
+        }} else {{
+          console.warn('Опции сети не найдены в dropdown — подтверждаем Enter');
+          networkInput.dispatchEvent(new KeyboardEvent('keydown', {{
+            key: 'Enter', keyCode: 13, which: 13, bubbles: true
+          }}));
         }}
       }} else {{
-        console.error("Поле ввода для сети не найдено");
+        console.error('Выпадающий список сети не найден — фолбэк Enter');
+        networkInput.dispatchEvent(new KeyboardEvent('keydown', {{
+          key: 'Enter', keyCode: 13, which: 13, bubbles: true
+        }}));
       }}
-    }} else {{
-      console.error("Контейнер для выбора сети не найден");
     }}
   }}
+}} catch (e) {{
+  console.error('Ошибка при заполнении сети:', e);
+}}
 
-  await delay(100);
+await delay(300);
 
   // 3. Заполняем имя и адрес
   const remarkInput = row.querySelector('input[id*="remark"]') || coinInputs[3]; 
